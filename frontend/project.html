@@ -1,0 +1,1451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Wage - Connect Workers & Employers</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      transition-property: color, background-color, border-color;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+      transition-duration: 200ms;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    .animate-bounce {
+      animation: bounce 1s infinite;
+    }
+    .audio-btn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 50;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+    .audio-btn:hover {
+      transform: scale(1.15);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#667eea',
+            secondary: '#764ba2',
+            success: '#10b981',
+            danger: '#ef4444',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-50">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    
+    // ============================================
+    // API CONFIGURATION
+    // ============================================
+    const API_BASE_URL = 'http://localhost:5000/api';
+    
+    const api = {
+      register: async (userData) => {
+        const response = await fetch(`${API_BASE_URL}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userData)
+        });
+        return response.json();
+      },
+      
+      login: async (credentials) => {
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(credentials)
+        });
+        return response.json();
+      },
+      
+      saveSeekerProfile: async (token, profileData) => {
+        const response = await fetch(`${API_BASE_URL}/seeker/profile`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(profileData)
+        });
+        return response.json();
+      },
+      
+      getSeekerProfile: async (token) => {
+        const response = await fetch(`${API_BASE_URL}/seeker/profile`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+      },
+      
+      saveProviderProfile: async (token, profileData) => {
+        const response = await fetch(`${API_BASE_URL}/provider/profile`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(profileData)
+        });
+        return response.json();
+      },
+      
+      searchSeekers: async (token, filters = {}) => {
+        const params = new URLSearchParams();
+        if (filters.workType) params.append('workType', filters.workType);
+        if (filters.maxBudget) params.append('maxBudget', filters.maxBudget);
+        if (filters.location) params.append('location', filters.location);
+        
+        const response = await fetch(`${API_BASE_URL}/provider/seekers?${params}`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+      },
+
+      sendJobRequest: async (token, seekerId, message) => {
+        const response = await fetch(`${API_BASE_URL}/provider/send-request`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ seekerId, message })
+        });
+        return response.json();
+      },
+
+      getJobRequests: async (token) => {
+        const response = await fetch(`${API_BASE_URL}/seeker/job-requests`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+      },
+
+      respondToJobRequest: async (token, requestId, status) => {
+        const response = await fetch(`${API_BASE_URL}/seeker/respond-request`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ requestId, status })
+        });
+        return response.json();
+      }
+    };
+
+    // ============================================
+    // TRANSLATIONS
+    // ============================================
+    const translations = {
+      en: {
+        selectLanguage: 'Select Language',
+        english: 'English',
+        telugu: 'తెలుగు',
+        login: 'Login',
+        register: 'Register',
+        phoneNumber: 'Phone Number',
+        password: 'Password',
+        fullName: 'Full Name',
+        signIn: 'Sign In',
+        signUp: 'Sign Up',
+        needWork: 'I Need Work',
+        needWorker: 'I Need Worker',
+        workerAvailable: 'I\'m Available for Work',
+        browseAvailable: 'Browse Available Workers',
+        back: 'Back',
+        home: 'Home',
+        wage: 'Daily Wage',
+        location: 'Location',
+        postJob: 'Post a Job',
+        workTypes: 'Work Types',
+        expectedWage: 'Expected Wage (₹)',
+        hoursAvailability: 'Hours Availability',
+        fullDay: 'Full day',
+        halfDay: 'Half day',
+        custom: 'Custom',
+        customHours: 'Custom Hours',
+        availableDays: 'Available Days',
+        today: 'Today',
+        tomorrow: 'Tomorrow',
+        weekdays: 'Weekdays',
+        weekends: 'Weekends',
+        experience: 'Experience',
+        submit: 'Submit',
+        success: 'Success!',
+        profileSaved: 'Profile saved successfully!',
+        logout: 'Logout',
+        welcome: 'Welcome',
+        alreadyHaveAccount: 'Already have an account?',
+        dontHaveAccount: 'Don\'t have an account?',
+        chooseRole: 'Choose Role',
+        seeker: 'Job Seeker',
+        provider: 'Job Provider',
+        budgetPerDay: 'Budget Per Day (₹)',
+        workersNeeded: 'Workers Needed',
+        workingHours: 'Working Hours',
+        workStartTime: 'Work Start Time',
+        loading: 'Loading...',
+        error: 'Error',
+        noWorkersFound: 'No workers found',
+        searchWorkers: 'Search Workers',
+        workType: 'Work Type',
+        maxBudget: 'Max Budget',
+        agriculture: 'Agriculture Labour',
+        construction: 'Construction',
+        plumbing: 'Plumbing',
+        electrical: 'Electrical',
+        painting: 'Painting',
+        housekeeping: 'Housekeeping',
+        others: 'Others',
+        lessThan1Year: 'Less than 1 year',
+        oneToThreeYears: '1-3 years',
+        threePlusYears: '3+ years',
+        sendOffer: 'Send Job Offer',
+        call: 'Call',
+        jobOffers: 'Job Offers',
+        noJobOffers: 'No job offers yet',
+        accept: 'Accept',
+        reject: 'Reject',
+        pending: 'Pending',
+        accepted: 'Accepted',
+        rejected: 'Rejected',
+        offerSent: 'Job offer sent successfully!',
+        viewOffers: 'View Job Offers',
+      },
+      te: {
+        selectLanguage: 'భాష ఎంచుకోండి',
+        english: 'English',
+        telugu: 'తెలుగు',
+        login: 'లాగిన్',
+        register: 'నమోదు',
+        phoneNumber: 'ఫోన్ నంబర్',
+        password: 'పాస్వర్డ్',
+        fullName: 'పూర్తి పేరు',
+        signIn: 'సైన్ ఇన్ చేయండి',
+        signUp: 'సైన్ అప్ చేయండి',
+        needWork: 'నాకు పని కావాలి',
+        needWorker: 'నాకు కార్మికుడు కావాలి',
+        workerAvailable: 'నేను పని కోసం అందుబాటులో ఉన్నాను',
+        browseAvailable: 'అందుబాటులో ఉన్న కార్మికులను చూడండి',
+        back: 'వెనుకకు',
+        home: 'ఇల్లు',
+        wage: 'రోజువారీ వేతనం',
+        location: 'స్థానం',
+        postJob: 'ఉద్యోగం పోస్ట్ చేయండి',
+        workTypes: 'పని రకాలు',
+        expectedWage: 'ఆశించిన వేతనం (₹)',
+        hoursAvailability: 'గంటల లభ్యత',
+        fullDay: 'పూర్తి రోజు',
+        halfDay: 'సగం రోజు',
+        custom: 'అనుకూలీకరించు',
+        customHours: 'అనుకూల గంటలు',
+        availableDays: 'అందుబాటులో ఉన్న రోజులు',
+        today: 'ఈరోజు',
+        tomorrow: 'రేపు',
+        weekdays: 'వారపు రోజులు',
+        weekends: 'వారాంతాలు',
+        experience: 'అనుభవం',
+        submit: 'సమర్పించండి',
+        success: 'విజయం!',
+        profileSaved: 'ప్రొఫైల్ విజయవంతంగా సేవ్ చేయబడింది!',
+        logout: 'లాగ్ అవుట్',
+        welcome: 'స్వాగతం',
+        alreadyHaveAccount: 'ఇప్పటికే ఖాతా ఉందా?',
+        dontHaveAccount: 'ఖాతా లేదా?',
+        chooseRole: 'పాత్రను ఎంచుకోండి',
+        seeker: 'ఉద్యోగార్థి',
+        provider: 'ఉద్యోగదాత',
+        budgetPerDay: 'రోజుకు బడ్జెట్ (₹)',
+        workersNeeded: 'కార్మికులు అవసరం',
+        workingHours: 'పని గంటలు',
+        workStartTime: 'పని ప్రారంభ సమయం',
+        loading: 'లోడ్ చేస్తోంది...',
+        error: 'లోపం',
+        noWorkersFound: 'కార్మికులు కనుగొనబడలేదు',
+        searchWorkers: 'కార్మికులను శోధించండి',
+        workType: 'పని రకం',
+        maxBudget: 'గరిష్ట బడ్జెట్',
+        agriculture: 'వ్యవసాయ కార్మికుడు',
+        construction: 'నిర్మాణం',
+        plumbing: 'ప్లంబింగ్',
+        electrical: 'ఎలక్ట్రికల్',
+        painting: 'పెయింటింగ్',
+        housekeeping: 'హౌస్ కీపింగ్',
+        others: 'ఇతరులు',
+        lessThan1Year: '1 సంవత్సరం కంటే తక్కువ',
+        oneToThreeYears: '1-3 సంవత్సరాలు',
+        threePlusYears: '3+ సంవత్సరాలు',
+        sendOffer: 'ఉద్యోగ ఆఫర్ పంపండి',
+        call: 'కాల్',
+        jobOffers: 'ఉద్యోగ ఆఫర్లు',
+        noJobOffers: 'ఇంకా ఉద్యోగ ఆఫర్లు లేవు',
+        accept: 'అంగీకరించు',
+        reject: 'తిరస్కరించు',
+        pending: 'పెండింగ్',
+        accepted: 'అంగీకరించబడింది',
+        rejected: 'తిరస్కరించబడింది',
+        offerSent: 'ఉద్యోగ ఆఫర్ విజయవంతంగా పంపబడింది!',
+        viewOffers: 'ఉద్యోగ ఆఫర్లను చూడండి',
+      },
+    };
+
+    function t(language, key) {
+      return translations[language]?.[key] || key;
+    }
+
+    function speakText(text, language) {
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = language === 'en' ? 'en-US' : 'te-IN';
+      utterance.rate = language === 'en' ? 0.9 : 0.75;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function AudioButton({ text, language }) {
+      const [isPlaying, setIsPlaying] = useState(false);
+
+      const handleAudio = () => {
+        setIsPlaying(true);
+        speakText(text, language);
+        setTimeout(() => setIsPlaying(false), 4000);
+      };
+
+      return (
+        <button
+          onClick={handleAudio}
+          className={`audio-btn ${isPlaying ? 'scale-110' : ''}`}
+        >
+          🔊
+        </button>
+      );
+    }
+
+    // ============================================
+    // LOGIN/REGISTER SCREEN
+    // ============================================
+    function LoginScreen({ onLogin }) {
+      const [language, setLanguage] = useState(null);
+      const [isLogin, setIsLogin] = useState(true);
+      const [role, setRole] = useState(null);
+      const [formData, setFormData] = useState({
+        name: '',
+        phone: '',
+        password: ''
+      });
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+
+        try {
+          let result;
+          if (isLogin) {
+            result = await api.login({
+              phone: formData.phone,
+              password: formData.password
+            });
+          } else {
+            if (!role) {
+              setError('Please select a role');
+              setLoading(false);
+              return;
+            }
+            result = await api.register({
+              name: formData.name,
+              phone: formData.phone,
+              password: formData.password,
+              role: role
+            });
+          }
+
+          if (result.token) {
+            onLogin({
+              ...result.user,
+              token: result.token,
+              language: language
+            });
+          } else {
+            setError(result.message || 'Authentication failed');
+          }
+        } catch (err) {
+          setError('Network error. Please check if backend is running.');
+        }
+        setLoading(false);
+      };
+
+      if (!language) {
+        return (
+          <div className="min-h-screen flex items-center justify-center p-4 bg-white">
+            <div className="w-full max-w-md text-center">
+              <div className="text-7xl mb-8">🌍</div>
+              <h1 className="text-5xl font-bold text-gray-900 mb-4">Daily Wage</h1>
+              <p className="text-lg text-gray-600 mb-12">Connect workers with job opportunities</p>
+              <p className="text-sm font-semibold text-gray-500 mb-6 uppercase tracking-wide">Choose Your Language</p>
+              <div className="space-y-3">
+                {['en', 'te'].map((lang) => (
+                  <button
+                    key={lang}
+                    onClick={() => setLanguage(lang)}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition duration-200 text-base shadow-sm hover:shadow-md"
+                  >
+                    <span className="text-xl mr-3">{lang === 'en' ? '🇬🇧' : '🇮🇳'}</span>
+                    {lang === 'en' ? 'English' : 'తెలుగు (Telugu)'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (!isLogin && !role) {
+        return (
+          <div className="min-h-screen flex items-center justify-center p-4 bg-white">
+            <div className="w-full max-w-md text-center">
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">{t(language, 'chooseRole')}</h1>
+              <p className="text-gray-600 mb-10 text-sm">Select your role to continue</p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => setRole('seeker')}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition duration-200 text-base shadow-sm hover:shadow-md"
+                >
+                  👷 {t(language, 'seeker')}
+                </button>
+                <button
+                  onClick={() => setRole('provider')}
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-4 px-6 rounded-lg transition duration-200 text-base shadow-sm hover:shadow-md"
+                >
+                  🏢 {t(language, 'provider')}
+                </button>
+              </div>
+              <button
+                onClick={() => setIsLogin(true)}
+                className="w-full text-gray-600 hover:text-gray-900 font-medium py-3 px-6 rounded-lg transition duration-200 text-sm mt-4"
+              >
+                ← {t(language, 'alreadyHaveAccount')}
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4 bg-white">
+          <AudioButton text={isLogin ? "Sign in to continue" : "Create a new account"} language={language} />
+          <div className="w-full max-w-md">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2 text-center">
+              {isLogin ? t(language, 'signIn') : t(language, 'signUp')}
+            </h1>
+            <p className="text-gray-600 text-center mb-10 text-sm">
+              {isLogin ? 'Enter your credentials' : 'Create your account'}
+            </p>
+
+            {error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {!isLogin && (
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2 text-sm">
+                    {t(language, 'fullName')}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required={!isLogin}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-gray-700 font-medium mb-2 text-sm">
+                  {t(language, 'phoneNumber')}
+                </label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  placeholder="9876543210"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-medium mb-2 text-sm">
+                  {t(language, 'password')}
+                </label>
+                <input
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 text-base mt-8 shadow-sm hover:shadow-md disabled:bg-gray-400"
+              >
+                {loading ? t(language, 'loading') : (isLogin ? t(language, 'signIn') : t(language, 'signUp'))}
+              </button>
+            </form>
+
+            <button
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setRole(null);
+                setError('');
+              }}
+              className="w-full text-gray-600 hover:text-gray-900 font-medium py-3 px-6 rounded-lg transition duration-200 text-sm mt-4"
+            >
+              {isLogin ? t(language, 'dontHaveAccount') + ' ' + t(language, 'signUp') : t(language, 'alreadyHaveAccount') + ' ' + t(language, 'signIn')}
+            </button>
+
+            <button
+              onClick={() => setLanguage(null)}
+              className="w-full text-gray-600 hover:text-gray-900 font-medium py-3 px-6 rounded-lg transition duration-200 text-sm mt-2 border border-gray-200"
+            >
+              🌍 Change Language
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================
+    // HOME SCREEN
+    // ============================================
+    function HomeScreen({ user, language, onSelectRole, onLogout }) {
+      return (
+        <div className="min-h-screen bg-white p-4">
+          <AudioButton text={`Welcome ${user.name}`} language={language} />
+          <div className="max-w-4xl mx-auto pt-8 pb-12">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              👋 {t(language, 'welcome')}, {user.name}
+            </h1>
+            <p className="text-gray-600 mb-12 text-lg">What would you like to do today?</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+              {user.role === 'seeker' && (
+                <>
+                  <div
+                    onClick={() => onSelectRole('seekerProfile')}
+                    className="bg-white border-2 border-gray-200 rounded-lg p-8 cursor-pointer transition duration-200 hover:border-blue-500 hover:bg-blue-50 group"
+                  >
+                    <div className="text-5xl mb-4 group-hover:scale-110 transition duration-200">📢</div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{t(language, 'workerAvailable')}</h2>
+                    <p className="text-gray-600 mb-6 text-sm">Update your profile and availability</p>
+                    <div className="inline-block bg-blue-600 group-hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                      Update Profile →
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => onSelectRole('jobOffers')}
+                    className="bg-white border-2 border-gray-200 rounded-lg p-8 cursor-pointer transition duration-200 hover:border-green-500 hover:bg-green-50 group"
+                  >
+                    <div className="text-5xl mb-4 group-hover:scale-110 transition duration-200">📧</div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{t(language, 'jobOffers')}</h2>
+                    <p className="text-gray-600 mb-6 text-sm">View and respond to job offers</p>
+                    <div className="inline-block bg-green-600 group-hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                      View Offers →
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {user.role === 'provider' && (
+                <>
+                  <div
+                    onClick={() => onSelectRole('providerProfile')}
+                    className="bg-white border-2 border-gray-200 rounded-lg p-8 cursor-pointer transition duration-200 hover:border-orange-500 hover:bg-orange-50 group"
+                  >
+                    <div className="text-5xl mb-4 group-hover:scale-110 transition duration-200">📝</div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{t(language, 'postJob')}</h2>
+                    <p className="text-gray-600 mb-6 text-sm">Post your job requirements</p>
+                    <div className="inline-block bg-orange-600 group-hover:bg-orange-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                      Post Job →
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => onSelectRole('browseWorkers')}
+                    className="bg-white border-2 border-gray-200 rounded-lg p-8 cursor-pointer transition duration-200 hover:border-purple-500 hover:bg-purple-50 group"
+                  >
+                    <div className="text-5xl mb-4 group-hover:scale-110 transition duration-200">👥</div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{t(language, 'browseAvailable')}</h2>
+                    <p className="text-gray-600 mb-6 text-sm">Find available workers</p>
+                    <div className="inline-block bg-purple-600 group-hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                      Browse →
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <button
+              onClick={onLogout}
+              className="text-gray-600 hover:text-gray-900 font-medium text-sm transition duration-200 border-t border-gray-200 pt-8 w-full text-left"
+            >
+              🚪 {t(language, 'logout')}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================
+    // SEEKER PROFILE FORM
+    // ============================================
+    function SeekerProfileForm({ user, language, onGoHome, onSuccess }) {
+      const [formData, setFormData] = useState({
+        workTypes: [],
+        expectedWage: '',
+        hoursAvailability: 'Full day',
+        customHours: '',
+        availableDays: [],
+        location: '',
+        experience: ''
+      });
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
+
+      useEffect(() => {
+        const loadProfile = async () => {
+          try {
+            const result = await api.getSeekerProfile(user.token);
+            if (result.workTypes) {
+              setFormData({
+                workTypes: result.workTypes || [],
+                expectedWage: result.expectedWage || '',
+                hoursAvailability: result.hoursAvailability || 'Full day',
+                customHours: result.customHours || '',
+                availableDays: result.availableDays || [],
+                location: result.location || '',
+                experience: result.experience || ''
+              });
+            }
+          } catch (err) {
+            console.log('No existing profile');
+          }
+        };
+        loadProfile();
+      }, [user.token]);
+
+      const workTypeOptions = [
+        'Agriculture Labour',
+        'Construction',
+        'Plumbing',
+        'Electrical',
+        'Painting',
+        'Housekeeping',
+        'Others'
+      ];
+
+      const dayOptions = ['Today', 'Tomorrow', 'Weekdays', 'Weekends'];
+
+      const handleWorkTypeToggle = (type) => {
+        setFormData(prev => ({
+          ...prev,
+          workTypes: prev.workTypes.includes(type)
+            ? prev.workTypes.filter(t => t !== type)
+            : [...prev.workTypes, type]
+        }));
+      };
+
+      const handleDayToggle = (day) => {
+        setFormData(prev => ({
+          ...prev,
+          availableDays: prev.availableDays.includes(day)
+            ? prev.availableDays.filter(d => d !== day)
+            : [...prev.availableDays, day]
+        }));
+      };
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+
+        try {
+          const result = await api.saveSeekerProfile(user.token, formData);
+          if (result.message) {
+            onSuccess();
+          } else {
+            setError(result.message || 'Failed to save profile');
+          }
+        } catch (err) {
+          setError('Network error');
+        }
+        setLoading(false);
+      };
+
+      return (
+        <div className="min-h-screen p-4 pb-20 bg-gradient-to-b from-primary to-secondary">
+          <AudioButton text="Update your worker profile" language={language} />
+          <div className="max-w-md mx-auto">
+            <button
+              onClick={onGoHome}
+              className="bg-white text-primary font-bold py-2 px-4 rounded-lg hover:bg-gray-100 transition mb-6 shadow-lg"
+            >
+              ← {t(language, 'back')}
+            </button>
+
+            <div className="bg-white rounded-2xl shadow-2xl p-6">
+              <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+                {t(language, 'workerAvailable')}
+              </h1>
+
+              {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-2">{t(language, 'workTypes')}</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {workTypeOptions.map(type => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => handleWorkTypeToggle(type)}
+                        className={`py-2 px-3 rounded-lg text-sm transition ${
+                          formData.workTypes.includes(type)
+                            ? 'bg-primary text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-2">{t(language, 'expectedWage')}</label>
+                  <input
+                    type="number"
+                    value={formData.expectedWage}
+                    onChange={(e) => setFormData({...formData, expectedWage: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-2">{t(language, 'hoursAvailability')}</label>
+                  <select
+                    value={formData.hoursAvailability}
+                    onChange={(e) => setFormData({...formData, hoursAvailability: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="Full day">{t(language, 'fullDay')}</option>
+                    <option value="Half day">{t(language, 'halfDay')}</option>
+                    <option value="Custom">{t(language, 'custom')}</option>
+                  </select>
+                </div>
+
+                {formData.hoursAvailability === 'Custom' && (
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-2">{t(language, 'customHours')}</label>
+                    <input
+                      type="number"
+                      value={formData.customHours}
+                      onChange={(e) => setFormData({...formData, customHours: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-2">{t(language, 'availableDays')}</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {dayOptions.map(day => (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => handleDayToggle(day)}
+                        className={`py-2 px-3 rounded-lg text-sm transition ${
+                          formData.availableDays.includes(day)
+                            ? 'bg-success text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-2">{t(language, 'location')}</label>
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({...formData, location: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-2">{t(language, 'experience')}</label>
+                  <select
+                    value={formData.experience}
+                    onChange={(e) => setFormData({...formData, experience: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">Select experience</option>
+                    <option value="Less than 1 year">{t(language, 'lessThan1Year')}</option>
+                    <option value="1-3 years">{t(language, 'oneToThreeYears')}</option>
+                    <option value="3+ years">{t(language, 'threePlusYears')}</option>
+                  </select>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-success hover:bg-green-600 text-white font-bold py-4 px-6 rounded-xl transition duration-300 text-lg mt-6 shadow-lg disabled:bg-gray-400"
+                >
+                  {loading ? t(language, 'loading') : t(language, 'submit')}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================
+    // PROVIDER PROFILE FORM  
+    // ============================================
+    function ProviderProfileForm({ user, language, onGoHome, onSuccess }) {
+      const [formData, setFormData] = useState({
+        workType: '',
+        budgetPerDay: '',
+        workersNeeded: '1',
+        workingHours: 'Full day',
+        customHours: '',
+        location: '',
+        workStartTime: ''
+      });
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
+
+      const workTypeOptions = [
+        'Agriculture Labour',
+        'Construction',
+        'Plumbing',
+        'Electrical',
+        'Painting',
+        'Housekeeping',
+        'Others'
+      ];
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+
+        try {
+          const result = await api.saveProviderProfile(user.token, formData);
+          if (result.message) {
+            onSuccess();
+          } else {
+            setError(result.message || 'Failed to save profile');
+          }
+        } catch (err) {
+          setError('Network error');
+        }
+        setLoading(false);
+      };
+
+      return (
+        <div className="min-h-screen p-4 pb-20 bg-gradient-to-b from-primary to-secondary">
+          <AudioButton text="Post your job requirement" language={language} />
+          <div className="max-w-md mx-auto">
+            <button
+              onClick={onGoHome}
+              className="bg-white text-primary font-bold py-2 px-4 rounded-lg hover:bg-gray-100 transition mb-6 shadow-lg"
+            >
+              ← {t(language, 'back')}
+            </button>
+
+            <div className="bg-white rounded-2xl shadow-2xl p-6">
+              <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+                {t(language, 'postJob')}
+              </h1>
+
+              {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-2">{t(language, 'workType')}</label>
+                  <select
+                    value={formData.workType}
+                    onChange={(e) => setFormData({...formData, workType: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  >
+                    <option value="">Select work type</option>
+                    {workTypeOptions.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-2">{t(language, 'budgetPerDay')}</label>
+                  <input
+                    type="number"
+                    value={formData.budgetPerDay}
+                    onChange={(e) => setFormData({...formData, budgetPerDay: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-2">{t(language, 'workersNeeded')}</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.workersNeeded}
+                    onChange={(e) => setFormData({...formData, workersNeeded: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-2">{t(language, 'workingHours')}</label>
+                  <select
+                    value={formData.workingHours}
+                    onChange={(e) => setFormData({...formData, workingHours: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="Full day">{t(language, 'fullDay')}</option>
+                    <option value="Half day">{t(language, 'halfDay')}</option>
+                    <option value="Custom">{t(language, 'custom')}</option>
+                  </select>
+                </div>
+
+                {formData.workingHours === 'Custom' && (
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-2">{t(language, 'customHours')}</label>
+                    <input
+                      type="number"
+                      value={formData.customHours}
+                      onChange={(e) => setFormData({...formData, customHours: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-2">{t(language, 'location')}</label>
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({...formData, location: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-2">{t(language, 'workStartTime')}</label>
+                  <input
+                    type="time"
+                    value={formData.workStartTime}
+                    onChange={(e) => setFormData({...formData, workStartTime: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-success hover:bg-green-600 text-white font-bold py-4 px-6 rounded-xl transition duration-300 text-lg mt-6 shadow-lg disabled:bg-gray-400"
+                >
+                  {loading ? t(language, 'loading') : t(language, 'submit')}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================
+    // BROWSE WORKERS SCREEN
+    // ============================================
+    function BrowseWorkersScreen({ user, language, onGoHome }) {
+      const [workers, setWorkers] = useState([]);
+      const [loading, setLoading] = useState(false);
+      const [filters, setFilters] = useState({
+        workType: '',
+        maxBudget: '',
+        location: ''
+      });
+
+      const workTypeOptions = [
+        'Agriculture Labour',
+        'Construction',
+        'Plumbing',
+        'Electrical',
+        'Painting',
+        'Housekeeping',
+        'Others'
+      ];
+
+      const searchWorkers = async () => {
+        setLoading(true);
+        try {
+          const result = await api.searchSeekers(user.token, filters);
+          console.log('Search result:', result);
+          setWorkers(result.seekers || []);
+        } catch (err) {
+          console.error('Search error:', err);
+          alert('Error searching workers. Please try again.');
+        }
+        setLoading(false);
+      };
+
+      useEffect(() => {
+        searchWorkers();
+      }, []);
+
+      const handleSendOffer = async (worker) => {
+        if (confirm(`Send job offer to ${worker.userId.name}?`)) {
+          try {
+            const result = await api.sendJobRequest(
+              user.token, 
+              worker.userId.id,
+              'Job offer from employer'
+            );
+            if (result.message) {
+              alert(t(language, 'offerSent'));
+            }
+          } catch (err) {
+            alert('Failed to send offer');
+          }
+        }
+      };
+
+      const handleCall = (worker) => {
+        alert(`📞 Calling ${worker.userId.name} at ${worker.userId.phone}`);
+      };
+
+      return (
+        <div className="min-h-screen p-4 pb-20 bg-gradient-to-b from-primary to-secondary">
+          <AudioButton text="Browse available workers" language={language} />
+          <div className="max-w-2xl mx-auto">
+            <button
+              onClick={onGoHome}
+              className="bg-white text-primary font-bold py-2 px-4 rounded-lg hover:bg-gray-100 transition mb-6 shadow-lg"
+            >
+              ← {t(language, 'back')}
+            </button>
+
+            <div className="bg-white rounded-xl p-4 mb-6 shadow-lg">
+              <h2 className="text-lg font-bold mb-4">{t(language, 'searchWorkers')}</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <select
+                  value={filters.workType}
+                  onChange={(e) => setFilters({...filters, workType: e.target.value})}
+                  className="px-3 py-2 border rounded-lg"
+                >
+                  <option value="">All Work Types</option>
+                  {workTypeOptions.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+
+                <input
+                  type="number"
+                  placeholder="Max Budget"
+                  value={filters.maxBudget}
+                  onChange={(e) => setFilters({...filters, maxBudget: e.target.value})}
+                  className="px-3 py-2 border rounded-lg"
+                />
+
+                <input
+                  type="text"
+                  placeholder="Location"
+                  value={filters.location}
+                  onChange={(e) => setFilters({...filters, location: e.target.value})}
+                  className="px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <button
+                onClick={searchWorkers}
+                className="w-full mt-3 bg-primary hover:bg-secondary text-white font-bold py-2 px-4 rounded-lg transition"
+              >
+                🔍 Search
+              </button>
+            </div>
+
+            {loading && (
+              <div className="text-center text-white text-xl">{t(language, 'loading')}</div>
+            )}
+
+            {!loading && workers.length === 0 && (
+              <div className="text-center text-white text-xl bg-white/20 p-8 rounded-xl">
+                {t(language, 'noWorkersFound')}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {workers.map((worker) => (
+                <div key={worker.id} className="bg-white rounded-xl p-5 shadow-lg">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-gray-800">
+                        👤 {worker.userId.name}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {worker.workTypes.join(', ')}
+                      </p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        📍 {worker.location}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleCall(worker)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-lg transition text-sm"
+                      >
+                        📞
+                      </button>
+                      <button
+                        onClick={() => handleSendOffer(worker)}
+                        className="bg-success hover:bg-green-600 text-white font-bold py-2 px-3 rounded-lg transition text-sm"
+                      >
+                        ✉️
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-sm border-t pt-3">
+                    <div>
+                      <p className="text-gray-600">💰 ₹{worker.expectedWage}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">⏱️ {worker.hoursAvailability}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">⭐ {worker.rating || '4.0'}</p>
+                    </div>
+                  </div>
+                  {worker.experience && (
+                    <p className="text-sm text-gray-600 mt-2">
+                      📚 {worker.experience}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================
+    // JOB OFFERS SCREEN (FOR SEEKERS)
+    // ============================================
+    function JobOffersScreen({ user, language, onGoHome }) {
+      const [offers, setOffers] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      const loadOffers = async () => {
+        setLoading(true);
+        try {
+          const result = await api.getJobRequests(user.token);
+          console.log('Job offers:', result);
+          setOffers(result.requests || []);
+        } catch (err) {
+          console.error('Load offers error:', err);
+        }
+        setLoading(false);
+      };
+
+      useEffect(() => {
+        loadOffers();
+      }, []);
+
+      const handleRespond = async (requestId, status) => {
+        try {
+          const result = await api.respondToJobRequest(user.token, requestId, status);
+          if (result.message) {
+            alert(result.message);
+            loadOffers(); // Reload offers
+          }
+        } catch (err) {
+          alert('Failed to respond to offer');
+        }
+      };
+
+      return (
+        <div className="min-h-screen p-4 pb-20 bg-gradient-to-b from-primary to-secondary">
+          <AudioButton text="View your job offers" language={language} />
+          <div className="max-w-2xl mx-auto">
+            <button
+              onClick={onGoHome}
+              className="bg-white text-primary font-bold py-2 px-4 rounded-lg hover:bg-gray-100 transition mb-6 shadow-lg"
+            >
+              ← {t(language, 'back')}
+            </button>
+
+            <h1 className="text-3xl font-bold text-white mb-6 text-center">
+              {t(language, 'jobOffers')}
+            </h1>
+
+            {loading && (
+              <div className="text-center text-white text-xl">{t(language, 'loading')}</div>
+            )}
+
+            {!loading && offers.length === 0 && (
+              <div className="text-center text-white text-xl bg-white/20 p-8 rounded-xl">
+                {t(language, 'noJobOffers')}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {offers.map((offer) => (
+                <div key={offer.id} className="bg-white rounded-xl p-5 shadow-lg">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-gray-800">
+                        🏢 {offer.provider_name}
+                      </h3>
+                      <p className="text-sm text-gray-600">📞 {offer.provider_phone}</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      offer.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      offer.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {t(language, offer.status)}
+                    </span>
+                  </div>
+
+                  {offer.work_type && (
+                    <div className="space-y-2 mb-4 bg-gray-50 p-3 rounded-lg">
+                      <p className="text-sm"><span className="font-bold">Work:</span> {offer.work_type}</p>
+                      <p className="text-sm"><span className="font-bold">Budget:</span> ₹{offer.budget_per_day}/day</p>
+                      <p className="text-sm"><span className="font-bold">Location:</span> {offer.location}</p>
+                      <p className="text-sm"><span className="font-bold">Hours:</span> {offer.working_hours}</p>
+                      {offer.work_start_time && (
+                        <p className="text-sm"><span className="font-bold">Start Time:</span> {offer.work_start_time}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {offer.status === 'pending' && (
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleRespond(offer.id, 'accepted')}
+                        className="flex-1 bg-success hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition"
+                      >
+                        ✓ {t(language, 'accept')}
+                      </button>
+                      <button
+                        onClick={() => handleRespond(offer.id, 'rejected')}
+                        className="flex-1 bg-danger hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition"
+                      >
+                        ✗ {t(language, 'reject')}
+                      </button>
+                    </div>
+                  )}
+
+                  {offer.status !== 'pending' && (
+                    <p className="text-sm text-gray-600 italic">
+                      {offer.status === 'accepted' 
+                        ? 'You accepted this offer. Contact the employer to start work.' 
+                        : 'You rejected this offer.'}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================
+    // SUCCESS SCREEN
+    // ============================================
+    function SuccessScreen({ language, onGoHome }) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-primary to-secondary">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md text-center">
+            <div className="text-7xl mb-6 animate-bounce">✅</div>
+            <h1 className="text-3xl font-bold text-success mb-2">{t(language, 'success')}</h1>
+            <p className="text-gray-600 mb-8 text-lg font-semibold">
+              {t(language, 'profileSaved')}
+            </p>
+
+            <button
+              onClick={onGoHome}
+              className="w-full bg-gradient-to-r from-primary to-secondary hover:from-secondary hover:to-primary text-white font-bold py-4 px-6 rounded-xl transition duration-300 transform hover:scale-105 text-lg shadow-lg"
+            >
+              🏠 {t(language, 'home')}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================
+    // MAIN APP
+    // ============================================
+    function App() {
+      const [user, setUser] = useState(null);
+      const [currentScreen, setCurrentScreen] = useState('login');
+
+      useEffect(() => {
+        const savedUser = localStorage.getItem('dailywage_user');
+        if (savedUser) {
+          const userData = JSON.parse(savedUser);
+          setUser(userData);
+          setCurrentScreen('home');
+        }
+      }, []);
+
+      const handleLogin = (userData) => {
+        setUser(userData);
+        localStorage.setItem('dailywage_user', JSON.stringify(userData));
+        setCurrentScreen('home');
+      };
+
+      const handleLogout = () => {
+        setUser(null);
+        localStorage.removeItem('dailywage_user');
+        setCurrentScreen('login');
+      };
+
+      const handleGoHome = () => {
+        setCurrentScreen('home');
+      };
+
+      if (!user) {
+        return <LoginScreen onLogin={handleLogin} />;
+      }
+
+      return (
+        <div className="min-h-screen">
+          {currentScreen === 'home' && (
+            <HomeScreen
+              user={user}
+              language={user.language}
+              onSelectRole={setCurrentScreen}
+              onLogout={handleLogout}
+            />
+          )}
+
+          {currentScreen === 'seekerProfile' && (
+            <SeekerProfileForm
+              user={user}
+              language={user.language}
+              onGoHome={handleGoHome}
+              onSuccess={() => setCurrentScreen('success')}
+            />
+          )}
+
+          {currentScreen === 'providerProfile' && (
+            <ProviderProfileForm
+              user={user}
+              language={user.language}
+              onGoHome={handleGoHome}
+              onSuccess={() => setCurrentScreen('success')}
+            />
+          )}
+
+          {currentScreen === 'browseWorkers' && (
+            <BrowseWorkersScreen
+              user={user}
+              language={user.language}
+              onGoHome={handleGoHome}
+            />
+          )}
+
+          {currentScreen === 'jobOffers' && (
+            <JobOffersScreen
+              user={user}
+              language={user.language}
+              onGoHome={handleGoHome}
+            />
+          )}
+
+          {currentScreen === 'success' && (
+            <SuccessScreen
+              language={user.language}
+              onGoHome={handleGoHome}
+            />
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
