@@ -1,22 +1,32 @@
-# AI Prompt Usage – LabourConnect
+# LabourConnect
 
-## Tools Used
-- ChatGPT (for architecture, UI logic, voice integration)
-- GitHub Copilot (optional, if used)
+## Problem Statement
+Daily wage workers often struggle to find jobs due to illiteracy,
+language barriers, and lack of access to technology.
 
-## Prompt Strategy
-We used AI to:
-- Design user flows for illiterate daily wage workers
-- Simplify UI language
-- Integrate voice assistance
-- Debug frontend and backend setup issues
+## Solution
+LabourConnect is a voice-assisted web platform that connects
+job seekers and job providers with a simple, accessible interface.
 
-## Sample Prompts Used
+## Features
+- Job Seeker & Job Provider flows
+- English & Telugu language support
+- Voice-assisted navigation
+- Mobile-friendly UI
 
-1. "Design a web app for daily wage workers who cannot read, using voice assistance."
-2. "Create a clean React + Tailwind landing page for a labour hiring platform."
-3. "Explain how to integrate text-to-speech in a React web app."
-4. "Help structure frontend and backend separately for a hackathon project."
-5. "Fix errors while setting up Vite + Tailwind + shadcn UI."
+## Tech Stack
+- Frontend: React, Vite, Tailwind CSS
+- Backend: Node.js (planned)
+- Database: MySQL (planned)
+- AI Tools: ChatGPT
 
-AI was used as a development assistant, not to generate final decisions.
+## Architecture
+![Architecture](architecture.png)![alt text](image.png)
+
+
+## Setup Instructions (Local)
+```bash
+git clone https://github.com/your-username/labourconnect-frontend
+cd labourconnect-frontend
+npm install
+npm run dev
